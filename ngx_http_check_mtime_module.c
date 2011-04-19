@@ -112,16 +112,28 @@ static ngx_int_t ngx_http_check_mtime_variable(ngx_http_request_t *r, ngx_http_v
 		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_mtime_module: variable not found '%s'", check_mtime_conf->file_path_variable_name.data);
 		return NGX_OK;
 	}
-	if (ngx_strlen(file_path_variable->data) == 0){
+	if (file_path_variable->len == 0){
 		return NGX_OK;
 	}
 	ngx_file_info_t fi;
-	if (ngx_file_info((const char *) file_path_variable->data, &fi) == -1) {
-		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_mtime_module: cannot get file info '%s'", file_path_variable->data);
+
+	/* Copy file_path_variable into new variable */
+	ngx_str_t new_file_path_variable;
+	new_file_path_variable.len = file_path_variable->len;
+	new_file_path_variable.data = ngx_pnalloc(r->pool, new_file_path_variable.len + 1);
+	if (new_file_path_variable.data == NULL) {
+		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_mtime_module: allocation failed");
+		return NGX_OK;
+	}
+	ngx_cpystrn(new_file_path_variable.data, file_path_variable->data, new_file_path_variable.len + 1);
+	new_file_path_variable.data[new_file_path_variable.len] = '\0';
+
+	if (ngx_file_info((const char *) new_file_path_variable.data, &fi) == -1) {
+		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_mtime_module: cannot get file info '%s'", new_file_path_variable.data);
 		return NGX_OK;
 	}
 	if (!ngx_is_file(&fi)) {
-		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_mtime_module: '%s' is not a file", file_path_variable->data);
+		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "check_mtime_module: '%s' is not a file", new_file_path_variable.data);
 		return NGX_OK;
 	}
 	time_t mtime = ngx_file_mtime(&fi);
